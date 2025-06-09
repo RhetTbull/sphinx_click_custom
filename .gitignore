@@ -1,1 +1,4 @@
 .envrc
+CLAUDE.md
+docs/
+__pycache__
