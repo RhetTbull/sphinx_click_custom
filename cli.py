@@ -19,6 +19,8 @@ CLI Overview
 
 This is a sample CLI with custom help text.
 
+The string ZZZ should show up in the Sphinx generated documentation.
+
 """
             )
         )
