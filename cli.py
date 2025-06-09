@@ -5,23 +5,19 @@ from textwrap import dedent
 import click
 
 
-class CliCommand(click.Command):
+class CustomCliCommand(click.Command):
     """Custom click.Command that overrides get_help() to show additional help info"""
 
     def get_help(self, ctx):
         help_text = super().get_help(ctx)
-        formatter = click.HelpFormatter(width=80)
+        formatter = click.HelpFormatter()
         formatter.write("\n\n")
         formatter.write(
             dedent(
                 f"""
 CLI Overview
 
-This is a sample CLI with a custom click command. To use it, run the following command:
-
-cli --name <name>
-
-{help_text}
+This is a sample CLI with custom help text.
 
 """
             )
@@ -30,9 +26,9 @@ cli --name <name>
         return help_text
 
 
-@click.command(cls=CliCommand, name="cli")
+@click.command(cls=CustomCliCommand, name="cli")
 def cli():
-    """Sample CLI with custome click command"""
+    """Sample CLI with custom click command"""
     click.echo("Hello, World!")
 
 
