@@ -1,0 +1,14 @@
+[build-system]
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "sphinx_click_custom"
+authors = [{name = "Rhet Turnbull", email = "rturnbull+git@gmail.com"}]
+license = "MIT"
+license-files = ["LICENSE"]
+version = "0.1.0"
+dynamic = ["description"]
+
+[project.urls]
+Home = "https://github.com/RhetTbull/sphinx_click_custom"

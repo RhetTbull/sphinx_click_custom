@@ -1,4 +1,4 @@
-"""Sample CLI with custome click command"""
+"""Sample CLI with custom click command"""
 
 from textwrap import dedent
 
@@ -19,8 +19,7 @@ CLI Overview
 
 This is a sample CLI with custom help text.
 
-The string ZZZ should show up in the Sphinx generated documentation.
-
+This help text will appear after the command description.
 """
             )
         )
@@ -29,9 +28,10 @@ The string ZZZ should show up in the Sphinx generated documentation.
 
 
 @click.command(cls=CustomCliCommand, name="cli")
-def cli():
+@click.option("--name", default="World", help="Name to greet")
+def cli(name):
     """Sample CLI with custom click command"""
-    click.echo("Hello, World!")
+    click.echo(f"Hello, {name}!")
 
 
 if __name__ == "__main__":
