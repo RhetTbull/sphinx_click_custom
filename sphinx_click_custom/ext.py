@@ -6,7 +6,7 @@ the same formatting and structure as the standard sphinx_click plugin.
 
 The extension automatically detects whether custom help text includes full formatting
 (Usage and Options sections) and uses it entirely, or whether it should blend custom
-content with standard sphinx_click formatting. This preserves the exact inline 
+content with standard sphinx_click formatting. This preserves the exact inline
 structure that users intended without requiring any special markers or modifications.
 
 Code adapted from sphinx_click (https://github.com/click-contrib/sphinx-click)
@@ -21,8 +21,7 @@ from importlib import import_module
 
 import click
 import click.core
-from docutils import nodes
-from docutils import statemachine
+from docutils import nodes, statemachine
 from docutils.parsers.rst import directives
 from sphinx.util import logging
 from sphinx.util import nodes as sphinx_nodes
@@ -31,18 +30,19 @@ from sphinx.util.docutils import SphinxDirective
 LOG = logging.getLogger(__name__)
 
 # Constants from sphinx_click
-NESTED_FULL = 'full'
-NESTED_SHORT = 'short'
-NESTED_NONE = 'none'
-NestedT = ty.Literal['full', 'short', 'none', None]
+NESTED_FULL = "full"
+NESTED_SHORT = "short"
+NESTED_NONE = "none"
+NestedT = ty.Literal["full", "short", "none", None]
 
-ANSI_ESC_SEQ_RE = re.compile(r'\x1B\[\d+(;\d+){0,2}m', flags=re.MULTILINE)
+ANSI_ESC_SEQ_RE = re.compile(r"\x1B\[\d+(;\d+){0,2}m", flags=re.MULTILINE)
 
 _T_Formatter = ty.Callable[[click.Context], ty.Generator[str, None, None]]
 
 
 def _process_lines(event_name: str) -> ty.Callable[[_T_Formatter], _T_Formatter]:
     """Process lines decorator for event hooks."""
+
     def decorator(func: _T_Formatter) -> _T_Formatter:
         @functools.wraps(func)
         def process_lines(ctx: click.Context) -> ty.Generator[str, None, None]:
@@ -51,27 +51,29 @@ def _process_lines(event_name: str) -> ty.Callable[[_T_Formatter], _T_Formatter]
                 ctx.meta["sphinx-click-env"].app.events.emit(event_name, ctx, lines)
             for line in lines:
                 yield line
+
         return process_lines
+
     return decorator
 
 
 def _indent(text: str, level: int = 1) -> str:
     """Indent text by specified level."""
-    prefix = ' ' * (4 * level)
+    prefix = " " * (4 * level)
 
     def prefixed_lines() -> ty.Generator[str, None, None]:
         for line in text.splitlines(True):
             yield (prefix + line if line.strip() else line)
 
-    return ''.join(prefixed_lines())
+    return "".join(prefixed_lines())
 
 
 def _get_usage(ctx: click.Context) -> str:
     """Alternative, non-prefixed version of 'get_usage'."""
     formatter = ctx.make_formatter()
     pieces = ctx.command.collect_usage_pieces(ctx)
-    formatter.write_usage(ctx.command_path, ' '.join(pieces), prefix='')
-    return formatter.getvalue().rstrip('\n')  # type: ignore
+    formatter.write_usage(ctx.command_path, " ".join(pieces), prefix="")
+    return formatter.getvalue().rstrip("\n")  # type: ignore
 
 
 def _get_help_record(ctx: click.Context, opt: click.core.Option) -> ty.Tuple[str, str]:
@@ -90,8 +92,8 @@ def _get_help_record(ctx: click.Context, opt: click.core.Option) -> ty.Tuple[str
         if not opt.is_flag and not opt.count:
             name = opt.name
             if opt.metavar:
-                name = opt.metavar.lstrip('<[{($').rstrip('>]})$')
-            rv += ' <{}>'.format(name)
+                name = opt.metavar.lstrip("<[{($").rstrip(">]})$")
+            rv += " <{}>".format(name)
         return rv  # type: ignore
 
     rv = [_write_opts(opt.opts)]
@@ -101,44 +103,49 @@ def _get_help_record(ctx: click.Context, opt: click.core.Option) -> ty.Tuple[str
     out = []
     if opt.help:
         if opt.required:
-            out.append('**Required** %s' % opt.help)
+            out.append("**Required** %s" % opt.help)
         else:
             out.append(opt.help)
     else:
         if opt.required:
-            out.append('**Required**')
+            out.append("**Required**")
 
     extras = []
 
+    # Handle show_default with proper type checking
     if opt.show_default is not None:
-        show_default = opt.show_default
-    else:
+        show_default: ty.Union[bool, str] = opt.show_default
+    elif ctx.show_default is not None:
         show_default = ctx.show_default
+    else:
+        show_default = False
 
     if isinstance(show_default, str):
         # Starting from Click 7.0 show_default can be a string. This is
         # mostly useful when the default is not a constant and
         # documentation thus needs a manually written string.
-        extras.append(':default: ``%r``' % ANSI_ESC_SEQ_RE.sub('', show_default))
+        extras.append(":default: ``%r``" % ANSI_ESC_SEQ_RE.sub("", show_default))
     elif show_default and opt.default is not None:
         extras.append(
-            ':default: ``%s``'
+            ":default: ``%s``"
             % (
-                ', '.join(repr(d) for d in opt.default)
-                if isinstance(opt.default, (list, tuple))
-                else repr(opt.default),
+                (
+                    ", ".join(repr(d) for d in opt.default)
+                    if isinstance(opt.default, (list, tuple))
+                    else repr(opt.default)
+                ),
             )
         )
 
     if isinstance(opt.type, click.Choice):
-        extras.append(':options: %s' % ' | '.join(str(x) for x in opt.type.choices))
+        extras.append(":options: %s" % " | ".join(str(x) for x in opt.type.choices))
 
     if extras:
         if out:
-            out.append('')
+            out.append("")
         out.extend(extras)
 
-    return ', '.join(rv), '\n'.join(out)
+    return ", ".join(rv), "\n".join(out)
 
 
 def _get_click_object(import_name: str) -> click.Command:
@@ -156,20 +163,20 @@ def _get_click_object(import_name: str) -> click.Command:
 
 def _format_help(help_string: str) -> ty.Generator[str, None, None]:
     """Format help text by handling ANSI escape sequences and special formatting."""
-    help_string = inspect.cleandoc(ANSI_ESC_SEQ_RE.sub('', help_string))
+    help_string = inspect.cleandoc(ANSI_ESC_SEQ_RE.sub("", help_string))
 
     bar_enabled = False
     for line in statemachine.string2lines(
         help_string, tab_width=4, convert_whitespace=True
     ):
-        if line == '\b':
+        if line == "\b":
             bar_enabled = True
             continue
-        if line == '':
+        if line == "":
             bar_enabled = False
-        line = '| ' + line if bar_enabled else line
+        line = "| " + line if bar_enabled else line
         yield line
-    yield ''
+    yield ""
 
 
 @_process_lines("sphinx-click-process-description")
@@ -178,7 +185,7 @@ def _format_description(ctx: click.Context) -> ty.Generator[str, None, None]:
 
     We parse this as reStructuredText, allowing users to embed rich
     information in their help messages if they so choose.
-    
+
     For custom commands with get_help() methods, we extract and format
     the custom content while preserving the structured layout.
     """
@@ -195,11 +202,11 @@ def _format_description(ctx: click.Context) -> ty.Generator[str, None, None]:
 @_process_lines("sphinx-click-process-usage")
 def _format_usage(ctx: click.Context) -> ty.Generator[str, None, None]:
     """Format the usage for a `click.Command`."""
-    yield '.. code-block:: shell'
-    yield ''
+    yield ".. code-block:: shell"
+    yield ""
     for line in _get_usage(ctx).splitlines():
         yield _indent(line)
-    yield ''
+    yield ""
 
 
 def _format_option(
@@ -208,19 +215,19 @@ def _format_option(
     """Format the output for a `click.core.Option`."""
     opt_help = _get_help_record(ctx, opt)
 
-    yield '.. option:: {}'.format(opt_help[0])
+    yield ".. option:: {}".format(opt_help[0])
     if opt_help[1]:
-        yield ''
+        yield ""
         bar_enabled = False
         for line in statemachine.string2lines(
-            ANSI_ESC_SEQ_RE.sub('', opt_help[1]), tab_width=4, convert_whitespace=True
+            ANSI_ESC_SEQ_RE.sub("", opt_help[1]), tab_width=4, convert_whitespace=True
         ):
-            if line == '\b':
+            if line == "\b":
                 bar_enabled = True
                 continue
-            if line == '':
+            if line == "":
                 bar_enabled = False
-            line = '| ' + line if bar_enabled else line
+            line = "| " + line if bar_enabled else line
             yield _indent(line)
 
 
@@ -231,29 +238,29 @@ def _format_options(ctx: click.Context) -> ty.Generator[str, None, None]:
     params = [
         param
         for param in ctx.command.params
-        if isinstance(param, click.core.Option) and not getattr(param, 'hidden', False)
+        if isinstance(param, click.core.Option) and not getattr(param, "hidden", False)
     ]
 
     for param in params:
         for line in _format_option(ctx, param):
             yield line
-        yield ''
+        yield ""
 
 
 def _format_argument(arg: click.Argument) -> ty.Generator[str, None, None]:
     """Format the output of a `click.Argument`."""
-    yield '.. option:: {}'.format(arg.human_readable_name)
-    yield ''
+    yield ".. option:: {}".format(arg.human_readable_name)
+    yield ""
     yield _indent(
-        '{} argument{}'.format(
-            'Required' if arg.required else 'Optional', '(s)' if arg.nargs != 1 else ''
+        "{} argument{}".format(
+            "Required" if arg.required else "Optional", "(s)" if arg.nargs != 1 else ""
         )
     )
     # Subclasses of click.Argument may add a `help` attribute (like typer.main.TyperArgument)
-    help = getattr(arg, 'help', None)
+    help = getattr(arg, "help", None)
     if help:
-        yield ''
-        help_string = ANSI_ESC_SEQ_RE.sub('', help)
+        yield ""
+        help_string = ANSI_ESC_SEQ_RE.sub("", help)
         for line in _format_help(help_string):
             yield _indent(line)
 
@@ -266,16 +273,16 @@ def _format_arguments(ctx: click.Context) -> ty.Generator[str, None, None]:
     for param in params:
         for line in _format_argument(param):
             yield line
-        yield ''
+        yield ""
 
 
 def _format_envvar(
-    param: ty.Union[click.core.Option, click.Argument]
+    param: ty.Union[click.core.Option, click.Argument, click.Parameter],
 ) -> ty.Generator[str, None, None]:
     """Format the envvars of a `click.Option` or `click.Argument`."""
-    yield '.. envvar:: {}'.format(param.envvar)
-    yield '   :noindex:'
-    yield ''
+    yield ".. envvar:: {}".format(param.envvar)
+    yield "   :noindex:"
+    yield ""
     if isinstance(param, click.Argument):
         param_ref = param.human_readable_name
     else:
@@ -283,7 +290,7 @@ def _format_envvar(
         # first. For example, if '--foo' or '-f' are possible, use '--foo'.
         param_ref = param.opts[0]
 
-    yield _indent('Provide a default for :option:`{}`'.format(param_ref))
+    yield _indent("Provide a default for :option:`{}`".format(param_ref))
 
 
 @_process_lines("sphinx-click-process-envars")
@@ -294,22 +301,22 @@ def _format_envvars(ctx: click.Context) -> ty.Generator[str, None, None]:
     if auto_envvar_prefix is not None:
         params = []
         for param in ctx.command.params:
-            if not param.envvar:
+            if not param.envvar and param.name:
                 param.envvar = f"{auto_envvar_prefix}_{param.name.upper()}"
             params.append(param)
     else:
         params = [x for x in ctx.command.params if x.envvar]
 
     for param in params:
-        yield '.. _{command_name}-{param_name}-{envvar}:'.format(
-            command_name=ctx.command_path.replace(' ', '-'),
+        yield ".. _{command_name}-{param_name}-{envvar}:".format(
+            command_name=ctx.command_path.replace(" ", "-"),
             param_name=param.name,
             envvar=param.envvar,
         )
-        yield ''
+        yield ""
         for line in _format_envvar(param):
             yield line
-        yield ''
+        yield ""
 
 
 @_process_lines("sphinx-click-process-epilog")
@@ -326,81 +333,83 @@ def _format_epilog(ctx: click.Context) -> ty.Generator[str, None, None]:
 def _parse_custom_help_sections(help_text: str) -> ty.Dict[str, str]:
     """Parse custom help text to extract different sections."""
     sections = {}
-    
+
     # Split by common section headers
-    usage_match = re.search(r'Usage:\s*([^\n]+)', help_text, re.IGNORECASE)
+    usage_match = re.search(r"Usage:\s*([^\n]+)", help_text, re.IGNORECASE)
     if usage_match:
-        sections['usage'] = usage_match.group(1).strip()
-    
+        sections["usage"] = usage_match.group(1).strip()
+
     # Extract everything else as description/custom content
     # Remove the standard sections to get custom content
     custom_content = help_text
-    
+
     # Remove Usage section (sphinx_click will handle this)
-    custom_content = re.sub(r'Usage:[^\n]*\n?', '', custom_content, flags=re.IGNORECASE)
-    
+    custom_content = re.sub(r"Usage:[^\n]*\n?", "", custom_content, flags=re.IGNORECASE)
+
     # Remove Options section completely (sphinx_click will handle this)
     # This pattern matches from "Options:" to either double newline followed by text or end of string
-    custom_content = re.sub(r'Options:.*?(?=\n\n\w|\Z)', '', custom_content, flags=re.DOTALL | re.IGNORECASE)
-    
+    custom_content = re.sub(
+        r"Options:.*?(?=\n\n\w|\Z)", "", custom_content, flags=re.DOTALL | re.IGNORECASE
+    )
+
     # Clean up extra whitespace and normalize formatting
-    custom_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', custom_content.strip())
-    
+    custom_content = re.sub(r"\n\s*\n\s*\n+", "\n\n", custom_content.strip())
+
     # Remove excessive indentation that might cause blockquote formatting
     lines = custom_content.splitlines()
     processed_lines = []
     for line in lines:
         # Remove leading whitespace but preserve relative indentation
         processed_lines.append(line.strip())
-    
-    custom_content = '\n'.join(processed_lines)
-    
+
+    custom_content = "\n".join(processed_lines)
+
     if custom_content:
-        sections['custom'] = custom_content
-    
+        sections["custom"] = custom_content
+
     return sections
 
 
-
-
-def _intercept_and_generate_sphinx_formatted_help(ctx: click.Context) -> ty.Tuple[str, str, str]:
+def _intercept_and_generate_sphinx_formatted_help(
+    ctx: click.Context,
+) -> ty.Tuple[str, str, str]:
     """Intercept super().get_help() and replace with sphinx-formatted content.
-    
+
     Returns:
         Tuple of (custom_content_before, custom_content_after, sphinx_formatted_help)
     """
     command = ctx.command
-    
+
     if not (hasattr(command, "get_help") and callable(getattr(command, "get_help"))):
         return "", "", ""
-    
+
     custom_content_before = ""
     custom_content_after = ""
-    
+
     # Temporarily replace the parent class get_help method to capture calls and context
     original_super_get_help = None
     intercepted_calls = []
-    
+
     try:
-        # Get the parent class (click.Command) 
+        # Get the parent class (click.Command)
         parent_class = command.__class__.__bases__[0]
-        if hasattr(parent_class, 'get_help'):
+        if hasattr(parent_class, "get_help"):
             original_super_get_help = parent_class.get_help
-            
+
             # Create a marker that we can identify in the custom help output
             sphinx_marker = "<<<SPHINX_FORMATTED_CONTENT>>>"
-            
+
             # Create a method that returns our marker
             def return_marker(self, ctx_inner):
                 intercepted_calls.append(ctx_inner)
                 return sphinx_marker
-            
+
             # Temporarily replace the parent's get_help method
             parent_class.get_help = return_marker
-            
+
             # Now call the custom get_help method
             custom_help = command.get_help(ctx)
-            
+
             # Split the custom help by our marker to get before/after content
             parts = custom_help.split(sphinx_marker)
             if len(parts) >= 2:
@@ -409,83 +418,97 @@ def _intercept_and_generate_sphinx_formatted_help(ctx: click.Context) -> ty.Tupl
             else:
                 # Marker not found, treat all as custom content
                 custom_content_before = custom_help.strip()
-            
+
             # Generate the sphinx-formatted help content for the intercepted context
             if intercepted_calls:
                 intercepted_ctx = intercepted_calls[0]
-                
+
                 # Generate sphinx-formatted sections as a special marker
                 # We'll handle this differently in the main function
                 sphinx_formatted_help = "<<<SPHINX_SECTIONS>>>"
-                return custom_content_before, custom_content_after, sphinx_formatted_help
-    
+                return (
+                    custom_content_before,
+                    custom_content_after,
+                    sphinx_formatted_help,
+                )
+
     except Exception as e:
-        LOG.warning(f"Failed to intercept super().get_help() for command {ctx.info_name}: {e}")
-    
+        LOG.warning(
+            f"Failed to intercept super().get_help() for command {ctx.info_name}: {e}"
+        )
+
     finally:
         # Always restore the original method
-        if original_super_get_help and hasattr(command.__class__.__bases__[0], 'get_help'):
+        if original_super_get_help and hasattr(
+            command.__class__.__bases__[0], "get_help"
+        ):
             command.__class__.__bases__[0].get_help = original_super_get_help
-    
+
     return custom_content_before, custom_content_after, ""
 
 
 def _intercept_and_replace_super_get_help(ctx: click.Context) -> str:
     """Intercept super().get_help() calls and replace appropriately.
-    
+
     Returns:
         The custom help text with super().get_help() calls handled properly
     """
     command = ctx.command
-    
+
     if not (hasattr(command, "get_help") and callable(getattr(command, "get_help"))):
         # No custom get_help method
         return command.help or command.short_help or ""
-    
-    # Check if we should use custom help entirely or just extract description
-    use_custom_entirely, custom_help = _should_use_custom_help_entirely(ctx)
-    
-    if use_custom_entirely:
-        # Use the full custom help and skip sphinx_click formatting
-        return custom_help
-    
+
+    # Get the custom help directly
+    try:
+        custom_help = command.get_help(ctx)
+    except Exception as e:
+        LOG.warning(f"Failed to get custom help for command {ctx.info_name}: {e}")
+        return command.help or command.short_help or ""
+
     # Get just the description (not the full formatted help)
     standard_description = command.help or command.short_help or ""
-    
+
     # Temporarily replace the parent class get_help method to return only description
     original_super_get_help = None
-    
+
     try:
-        # Get the parent class (click.Command) 
+        # Get the parent class (click.Command)
         parent_class = command.__class__.__bases__[0]
-        if hasattr(parent_class, 'get_help'):
+        if hasattr(parent_class, "get_help"):
             original_super_get_help = parent_class.get_help
-            
+
             # Create a method that returns only the description instead of full help
             def return_description_only(self, ctx_inner):
                 return standard_description
-            
+
             # Temporarily replace the parent's get_help method
             parent_class.get_help = return_description_only
-            
+
             # Now call the custom get_help method, which will get description inline
             custom_help = command.get_help(ctx)
-            
+
             return custom_help
-    
+
     except Exception as e:
-        LOG.warning(f"Failed to intercept super().get_help() for command {ctx.info_name}: {e}")
-    
+        LOG.warning(
+            f"Failed to intercept super().get_help() for command {ctx.info_name}: {e}"
+        )
+
     finally:
         # Always restore the original method
-        if original_super_get_help and hasattr(command.__class__.__bases__[0], 'get_help'):
+        if original_super_get_help and hasattr(
+            command.__class__.__bases__[0], "get_help"
+        ):
             command.__class__.__bases__[0].get_help = original_super_get_help
-    
+
     # Fallback to standard approach
     return standard_description
 
 
-def _format_custom_help_as_description(ctx: click.Context) -> ty.Generator[str, None, None]:
+def _format_custom_help_as_description(
+    ctx: click.Context,
+) -> ty.Generator[str, None, None]:
     """Format custom help text as description using interception approach."""
     command = ctx.command
 
@@ -494,20 +517,18 @@ def _format_custom_help_as_description(ctx: click.Context) -> ty.Generator[str, 
         try:
             # Use the interception approach
             intercepted_help = _intercept_and_replace_super_get_help(ctx)
-            
+
             if intercepted_help.strip():
                 # Parse to remove any remaining usage/options sections
                 sections = _parse_custom_help_sections(intercepted_help)
-                processed_text = sections.get('custom', intercepted_help)
-                
+                processed_text = sections.get("custom", intercepted_help)
+
                 if processed_text.strip():
                     yield from _format_help(processed_text)
                     return
-                    
+
         except Exception as e:
-            LOG.warning(
-                f"Failed to get custom help for command {ctx.info_name}: {e}"
-            )
+            LOG.warning(f"Failed to get custom help for command {ctx.info_name}: {e}")
 
     # Fallback to standard description if no custom help or processing failed
     help_string = ctx.command.help or ctx.command.short_help
@@ -527,53 +548,58 @@ def _format_command_custom(
     # Check if we should use intercepted sphinx formatting
     if hasattr(ctx.command, "get_help") and callable(getattr(ctx.command, "get_help")):
         try:
-            before, after, sphinx_help = _intercept_and_generate_sphinx_formatted_help(ctx)
-            
+            before, after, sphinx_help = _intercept_and_generate_sphinx_formatted_help(
+                ctx
+            )
+
             if sphinx_help:  # Interception was successful
                 # Custom content before the standard help
                 if before:
                     yield from _format_help(before)
-                
-                yield '.. program:: {}'.format(ctx.command_path)
-                
+
+                yield ".. program:: {}".format(ctx.command_path)
+
                 # Check if we need to generate sphinx sections
                 if sphinx_help == "<<<SPHINX_SECTIONS>>>":
                     # Generate the standard sphinx sections
-                    
+
                     # Description (just the docstring, not full help)
-                    if ctx.command.help or ctx.command.short_help:
-                        yield from _format_help(ctx.command.help or ctx.command.short_help)
-                    
-                    # Usage section 
+                    help_text = ctx.command.help or ctx.command.short_help
+                    if help_text:
+                        yield from _format_help(help_text)
+
+                    # Usage section
                     for line in _format_usage(ctx):
                         yield line
-                    
+
                     # Options section
                     lines = list(_format_options(ctx))
                     if lines:
-                        yield '.. rubric:: Options'
-                        yield ''
+                        yield ".. rubric:: Options"
+                        yield ""
                         for line in lines:
                             yield line
                 else:
                     # Use the provided sphinx-formatted help content
                     yield from _format_help(sphinx_help)
-                
+
                 # Custom content after the standard help
                 if after:
                     yield from _format_help(after)
-                
+
                 return
-                
+
         except Exception as e:
-            LOG.warning(f"Failed to use intercepted formatting for command {ctx.info_name}: {e}")
+            LOG.warning(
+                f"Failed to use intercepted formatting for command {ctx.info_name}: {e}"
+            )
 
     # Fallback to standard sphinx_click formatting with custom description
     # description - use custom description formatting
     for line in _format_description(ctx):
         yield line
 
-    yield '.. program:: {}'.format(ctx.command_path)
+    yield ".. program:: {}".format(ctx.command_path)
 
     # usage
     for line in _format_usage(ctx):
@@ -584,8 +610,8 @@ def _format_command_custom(
     if lines:
         # we use rubric to provide some separation without exploding the table
         # of contents
-        yield '.. rubric:: Options'
-        yield ''
+        yield ".. rubric:: Options"
+        yield ""
 
     for line in lines:
         yield line
@@ -593,8 +619,8 @@ def _format_command_custom(
     # arguments
     lines = list(_format_arguments(ctx))
     if lines:
-        yield '.. rubric:: Arguments'
-        yield ''
+        yield ".. rubric:: Arguments"
+        yield ""
 
     for line in lines:
         yield line
@@ -602,8 +628,8 @@ def _format_command_custom(
     # environment variables
     lines = list(_format_envvars(ctx))
     if lines:
-        yield '.. rubric:: Environment variables'
-        yield ''
+        yield ".. rubric:: Environment variables"
+        yield ""
 
     for line in lines:
         yield line
@@ -627,7 +653,7 @@ def nested(argument: ty.Optional[str]) -> NestedT:
     if argument not in values:
         raise ValueError(
             "%s is not a valid value for ':nested:'; allowed values: %s"
-            % directives.format_values(values)
+            % (argument, directives.format_values(values))
         )
 
     return ty.cast(NestedT, argument)
@@ -639,10 +665,10 @@ class ClickCustomDirective(SphinxDirective):
     has_content = False
     required_arguments = 1
     option_spec = {
-        'prog': directives.unchanged_required,
-        'nested': nested,
-        'commands': directives.unchanged,
-        'show-nested': directives.flag,
+        "prog": directives.unchanged_required,
+        "nested": nested,
+        "commands": directives.unchanged,
+        "show-nested": directives.flag,
     }
 
     def _generate_nodes(
@@ -650,7 +676,7 @@ class ClickCustomDirective(SphinxDirective):
         name: str,
         command: click.Command,
         parent: ty.Optional[click.Context],
-        nested: NestedT,  
+        nested: NestedT,
         env,
         commands: ty.Optional[ty.List[str]] = None,
     ) -> ty.List[nodes.section]:
@@ -673,7 +699,7 @@ class ClickCustomDirective(SphinxDirective):
 
         # Title
         section = nodes.section(
-            '',
+            "",
             nodes.title(text=name),
             ids=[nodes.make_id(ctx.command_path)],
             names=[nodes.fully_normalize_name(ctx.command_path)],
@@ -697,7 +723,7 @@ class ClickCustomDirective(SphinxDirective):
     def run(self) -> ty.List[nodes.section]:
         """Generate documentation nodes for the click command."""
         env = self.state.document.settings.env
-        
+
         import_name = self.arguments[0]
 
         try:
@@ -710,12 +736,12 @@ class ClickCustomDirective(SphinxDirective):
             LOG.error(f"Object '{import_name}' is not a Click command")
             return []
 
-        if 'prog' not in self.options:
-            raise self.error(':prog: must be specified')
+        if "prog" not in self.options:
+            raise self.error(":prog: must be specified")
 
-        prog_name = self.options['prog']
-        show_nested = 'show-nested' in self.options
-        nested = self.options.get('nested')
+        prog_name = self.options["prog"]
+        show_nested = "show-nested" in self.options
+        nested = self.options.get("nested")
 
         if show_nested:
             if nested:
@@ -726,9 +752,9 @@ class ClickCustomDirective(SphinxDirective):
                 nested = NESTED_FULL if show_nested else NESTED_SHORT
 
         commands = None
-        if self.options.get('commands'):
+        if self.options.get("commands"):
             commands = [
-                command.strip() for command in self.options['commands'].split(',')
+                command.strip() for command in self.options["commands"].split(",")
             ]
 
         return self._generate_nodes(prog_name, command, None, nested, env, commands)
@@ -737,18 +763,18 @@ class ClickCustomDirective(SphinxDirective):
 def setup(app):
     """Set up the Sphinx extension."""
     app.add_directive("click-custom", ClickCustomDirective)
-    
+
     # Add the same events as sphinx_click for compatibility
     # Only add events if they don't already exist (in case sphinx_click is also loaded)
     events_to_add = [
         "sphinx-click-process-description",
-        "sphinx-click-process-usage", 
+        "sphinx-click-process-usage",
         "sphinx-click-process-options",
         "sphinx-click-process-arguments",
         "sphinx-click-process-envvars",
-        "sphinx-click-process-epilog"
+        "sphinx-click-process-epilog",
     ]
-    
+
     for event_name in events_to_add:
         if event_name not in app.events.events:
             app.add_event(event_name)

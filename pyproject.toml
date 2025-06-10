@@ -9,6 +9,24 @@ license = "MIT"
 license-files = ["LICENSE"]
 version = "0.1.0"
 dynamic = ["description"]
+dependencies = [
+    "sphinx>=4.0",
+    "click>=7.0",
+    "docutils"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=6.0",
+    "pytest-cov"
+]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "mypy",
+    "black",
+    "flake8"
+]
 
 [project.urls]
 Home = "https://github.com/RhetTbull/sphinx_click_custom"
