@@ -363,35 +363,71 @@ def _parse_custom_help_sections(help_text: str) -> ty.Dict[str, str]:
 
 
 
-def _should_use_custom_help_entirely(ctx: click.Context) -> ty.Tuple[bool, str]:
-    """Check if we should use the custom help entirely instead of sphinx_click formatting.
+def _intercept_and_generate_sphinx_formatted_help(ctx: click.Context) -> ty.Tuple[str, str, str]:
+    """Intercept super().get_help() and replace with sphinx-formatted content.
     
     Returns:
-        Tuple of (should_use_custom, custom_help_text)
+        Tuple of (custom_content_before, custom_content_after, sphinx_formatted_help)
     """
     command = ctx.command
     
     if not (hasattr(command, "get_help") and callable(getattr(command, "get_help"))):
-        return False, ""
+        return "", "", ""
+    
+    custom_content_before = ""
+    custom_content_after = ""
+    
+    # Temporarily replace the parent class get_help method to capture calls and context
+    original_super_get_help = None
+    intercepted_calls = []
     
     try:
-        # Get the custom help text
-        custom_help = command.get_help(ctx)
-        
-        # Check if custom help contains both usage and options sections
-        has_usage = re.search(r'Usage:', custom_help, re.IGNORECASE)
-        has_options = re.search(r'Options:', custom_help, re.IGNORECASE)
-        
-        # If the custom help has its own formatting, use it entirely
-        if has_usage and has_options:
-            return True, custom_help
+        # Get the parent class (click.Command) 
+        parent_class = command.__class__.__bases__[0]
+        if hasattr(parent_class, 'get_help'):
+            original_super_get_help = parent_class.get_help
             
-        # Otherwise, let sphinx_click handle the formatting
-        return False, custom_help
-        
+            # Create a marker that we can identify in the custom help output
+            sphinx_marker = "<<<SPHINX_FORMATTED_CONTENT>>>"
+            
+            # Create a method that returns our marker
+            def return_marker(self, ctx_inner):
+                intercepted_calls.append(ctx_inner)
+                return sphinx_marker
+            
+            # Temporarily replace the parent's get_help method
+            parent_class.get_help = return_marker
+            
+            # Now call the custom get_help method
+            custom_help = command.get_help(ctx)
+            
+            # Split the custom help by our marker to get before/after content
+            parts = custom_help.split(sphinx_marker)
+            if len(parts) >= 2:
+                custom_content_before = parts[0].strip()
+                custom_content_after = parts[1].strip() if len(parts) > 1 else ""
+            else:
+                # Marker not found, treat all as custom content
+                custom_content_before = custom_help.strip()
+            
+            # Generate the sphinx-formatted help content for the intercepted context
+            if intercepted_calls:
+                intercepted_ctx = intercepted_calls[0]
+                
+                # Generate sphinx-formatted sections as a special marker
+                # We'll handle this differently in the main function
+                sphinx_formatted_help = "<<<SPHINX_SECTIONS>>>"
+                return custom_content_before, custom_content_after, sphinx_formatted_help
+    
     except Exception as e:
-        LOG.warning(f"Failed to check custom help for command {ctx.info_name}: {e}")
-        return False, ""
+        LOG.warning(f"Failed to intercept super().get_help() for command {ctx.info_name}: {e}")
+    
+    finally:
+        # Always restore the original method
+        if original_super_get_help and hasattr(command.__class__.__bases__[0], 'get_help'):
+            command.__class__.__bases__[0].get_help = original_super_get_help
+    
+    return custom_content_before, custom_content_after, ""
 
 
 def _intercept_and_replace_super_get_help(ctx: click.Context) -> str:
@@ -488,16 +524,51 @@ def _format_command_custom(
     if ctx.command.hidden:
         return None
 
-    # Check if we should use custom help entirely
+    # Check if we should use intercepted sphinx formatting
     if hasattr(ctx.command, "get_help") and callable(getattr(ctx.command, "get_help")):
-        use_custom_entirely, custom_help = _should_use_custom_help_entirely(ctx)
-        
-        if use_custom_entirely:
-            # Use the custom help entirely and skip standard sphinx_click formatting
-            yield from _format_help(custom_help)
-            return
+        try:
+            before, after, sphinx_help = _intercept_and_generate_sphinx_formatted_help(ctx)
+            
+            if sphinx_help:  # Interception was successful
+                # Custom content before the standard help
+                if before:
+                    yield from _format_help(before)
+                
+                yield '.. program:: {}'.format(ctx.command_path)
+                
+                # Check if we need to generate sphinx sections
+                if sphinx_help == "<<<SPHINX_SECTIONS>>>":
+                    # Generate the standard sphinx sections
+                    
+                    # Description (just the docstring, not full help)
+                    if ctx.command.help or ctx.command.short_help:
+                        yield from _format_help(ctx.command.help or ctx.command.short_help)
+                    
+                    # Usage section 
+                    for line in _format_usage(ctx):
+                        yield line
+                    
+                    # Options section
+                    lines = list(_format_options(ctx))
+                    if lines:
+                        yield '.. rubric:: Options'
+                        yield ''
+                        for line in lines:
+                            yield line
+                else:
+                    # Use the provided sphinx-formatted help content
+                    yield from _format_help(sphinx_help)
+                
+                # Custom content after the standard help
+                if after:
+                    yield from _format_help(after)
+                
+                return
+                
+        except Exception as e:
+            LOG.warning(f"Failed to use intercepted formatting for command {ctx.info_name}: {e}")
 
-    # Standard sphinx_click formatting with custom description
+    # Fallback to standard sphinx_click formatting with custom description
     # description - use custom description formatting
     for line in _format_description(ctx):
         yield line
