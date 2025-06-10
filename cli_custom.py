@@ -11,7 +11,6 @@ class CustomCliCommand(click.Command):
     def get_help(self, ctx):
         help_text = super().get_help(ctx)
         formatter = click.HelpFormatter()
-        formatter.write("\n\n")
         formatter.write(
             dedent(
                 f"""
@@ -19,12 +18,13 @@ CLI Overview
 
 This is a sample CLI with custom help text.
 
+{help_text}
+
 This help text will appear after the command description.
 """
             )
         )
-        help_text += formatter.getvalue()
-        return help_text
+        return formatter.getvalue()
 
 
 @click.command(cls=CustomCliCommand, name="cli")

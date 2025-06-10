@@ -4,6 +4,11 @@ This extension extends sphinx_click to properly handle custom Click commands
 that override the get_help() method to provide custom help text while maintaining
 the same formatting and structure as the standard sphinx_click plugin.
 
+The extension automatically detects whether custom help text includes full formatting
+(Usage and Options sections) and uses it entirely, or whether it should blend custom
+content with standard sphinx_click formatting. This preserves the exact inline 
+structure that users intended without requiring any special markers or modifications.
+
 Code adapted from sphinx_click (https://github.com/click-contrib/sphinx-click)
 License: MIT (see LICENSE file for attribution)
 """
@@ -173,10 +178,18 @@ def _format_description(ctx: click.Context) -> ty.Generator[str, None, None]:
 
     We parse this as reStructuredText, allowing users to embed rich
     information in their help messages if they so choose.
+    
+    For custom commands with get_help() methods, we extract and format
+    the custom content while preserving the structured layout.
     """
-    help_string = ctx.command.help or ctx.command.short_help
-    if help_string:
-        yield from _format_help(help_string)
+    # Check if this is a custom command with get_help method
+    if hasattr(ctx.command, "get_help") and callable(getattr(ctx.command, "get_help")):
+        yield from _format_custom_help_as_description(ctx)
+    else:
+        # Standard description formatting
+        help_string = ctx.command.help or ctx.command.short_help
+        if help_string:
+            yield from _format_help(help_string)
 
 
 @_process_lines("sphinx-click-process-usage")
@@ -310,46 +323,160 @@ def _format_epilog(ctx: click.Context) -> ty.Generator[str, None, None]:
         yield from _format_help(ctx.command.epilog)
 
 
-def _format_custom_help(ctx: click.Context) -> ty.Generator[str, None, None]:
-    """Format custom help text from get_help() method while preserving the original help structure."""
+def _parse_custom_help_sections(help_text: str) -> ty.Dict[str, str]:
+    """Parse custom help text to extract different sections."""
+    sections = {}
+    
+    # Split by common section headers
+    usage_match = re.search(r'Usage:\s*([^\n]+)', help_text, re.IGNORECASE)
+    if usage_match:
+        sections['usage'] = usage_match.group(1).strip()
+    
+    # Extract everything else as description/custom content
+    # Remove the standard sections to get custom content
+    custom_content = help_text
+    
+    # Remove Usage section (sphinx_click will handle this)
+    custom_content = re.sub(r'Usage:[^\n]*\n?', '', custom_content, flags=re.IGNORECASE)
+    
+    # Remove Options section completely (sphinx_click will handle this)
+    # This pattern matches from "Options:" to either double newline followed by text or end of string
+    custom_content = re.sub(r'Options:.*?(?=\n\n\w|\Z)', '', custom_content, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Clean up extra whitespace and normalize formatting
+    custom_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', custom_content.strip())
+    
+    # Remove excessive indentation that might cause blockquote formatting
+    lines = custom_content.splitlines()
+    processed_lines = []
+    for line in lines:
+        # Remove leading whitespace but preserve relative indentation
+        processed_lines.append(line.strip())
+    
+    custom_content = '\n'.join(processed_lines)
+    
+    if custom_content:
+        sections['custom'] = custom_content
+    
+    return sections
+
+
+
+
+def _should_use_custom_help_entirely(ctx: click.Context) -> ty.Tuple[bool, str]:
+    """Check if we should use the custom help entirely instead of sphinx_click formatting.
+    
+    Returns:
+        Tuple of (should_use_custom, custom_help_text)
+    """
+    command = ctx.command
+    
+    if not (hasattr(command, "get_help") and callable(getattr(command, "get_help"))):
+        return False, ""
+    
+    try:
+        # Get the custom help text
+        custom_help = command.get_help(ctx)
+        
+        # Check if custom help contains both usage and options sections
+        has_usage = re.search(r'Usage:', custom_help, re.IGNORECASE)
+        has_options = re.search(r'Options:', custom_help, re.IGNORECASE)
+        
+        # If the custom help has its own formatting, use it entirely
+        if has_usage and has_options:
+            return True, custom_help
+            
+        # Otherwise, let sphinx_click handle the formatting
+        return False, custom_help
+        
+    except Exception as e:
+        LOG.warning(f"Failed to check custom help for command {ctx.info_name}: {e}")
+        return False, ""
+
+
+def _intercept_and_replace_super_get_help(ctx: click.Context) -> str:
+    """Intercept super().get_help() calls and replace appropriately.
+    
+    Returns:
+        The custom help text with super().get_help() calls handled properly
+    """
+    command = ctx.command
+    
+    if not (hasattr(command, "get_help") and callable(getattr(command, "get_help"))):
+        # No custom get_help method
+        return command.help or command.short_help or ""
+    
+    # Check if we should use custom help entirely or just extract description
+    use_custom_entirely, custom_help = _should_use_custom_help_entirely(ctx)
+    
+    if use_custom_entirely:
+        # Use the full custom help and skip sphinx_click formatting
+        return custom_help
+    
+    # Get just the description (not the full formatted help)
+    standard_description = command.help or command.short_help or ""
+    
+    # Temporarily replace the parent class get_help method to return only description
+    original_super_get_help = None
+    
+    try:
+        # Get the parent class (click.Command) 
+        parent_class = command.__class__.__bases__[0]
+        if hasattr(parent_class, 'get_help'):
+            original_super_get_help = parent_class.get_help
+            
+            # Create a method that returns only the description instead of full help
+            def return_description_only(self, ctx_inner):
+                return standard_description
+            
+            # Temporarily replace the parent's get_help method
+            parent_class.get_help = return_description_only
+            
+            # Now call the custom get_help method, which will get description inline
+            custom_help = command.get_help(ctx)
+            
+            return custom_help
+    
+    except Exception as e:
+        LOG.warning(f"Failed to intercept super().get_help() for command {ctx.info_name}: {e}")
+    
+    finally:
+        # Always restore the original method
+        if original_super_get_help and hasattr(command.__class__.__bases__[0], 'get_help'):
+            command.__class__.__bases__[0].get_help = original_super_get_help
+    
+    # Fallback to standard approach
+    return standard_description
+
+
+def _format_custom_help_as_description(ctx: click.Context) -> ty.Generator[str, None, None]:
+    """Format custom help text as description using interception approach."""
     command = ctx.command
 
     # Check if this is a custom command with get_help method
     if hasattr(command, "get_help") and callable(getattr(command, "get_help")):
         try:
-            # Get the custom help text
-            help_text = command.get_help(ctx)
+            # Use the interception approach
+            intercepted_help = _intercept_and_replace_super_get_help(ctx)
             
-            # Parse the help text to extract custom content
-            # We need to identify what's added beyond the standard help
-            try:
-                # Get standard help for comparison
-                standard_formatter = ctx.make_formatter()
-                ctx.command.format_help(ctx, standard_formatter)
-                standard_help = standard_formatter.getvalue()
+            if intercepted_help.strip():
+                # Parse to remove any remaining usage/options sections
+                sections = _parse_custom_help_sections(intercepted_help)
+                processed_text = sections.get('custom', intercepted_help)
                 
-                # If custom help is longer, extract the additional content
-                if len(help_text) > len(standard_help):
-                    # Find the additional content (usually appended at the end)
-                    additional_content = help_text[len(standard_help):].strip()
-                    if additional_content:
-                        yield from _format_help(additional_content)
-                        return
-            except Exception:
-                # If we can't parse the difference, just use the full custom help
-                pass
-                
-            # Fallback: format the entire custom help text
-            yield from _format_help(help_text)
-            return
-            
+                if processed_text.strip():
+                    yield from _format_help(processed_text)
+                    return
+                    
         except Exception as e:
             LOG.warning(
                 f"Failed to get custom help for command {ctx.info_name}: {e}"
             )
 
-    # No custom help available
-    return
+    # Fallback to standard description if no custom help or processing failed
+    help_string = ctx.command.help or ctx.command.short_help
+    if help_string:
+        yield from _format_help(help_string)
 
 
 def _format_command_custom(
@@ -361,7 +488,17 @@ def _format_command_custom(
     if ctx.command.hidden:
         return None
 
-    # description - use standard description formatting
+    # Check if we should use custom help entirely
+    if hasattr(ctx.command, "get_help") and callable(getattr(ctx.command, "get_help")):
+        use_custom_entirely, custom_help = _should_use_custom_help_entirely(ctx)
+        
+        if use_custom_entirely:
+            # Use the custom help entirely and skip standard sphinx_click formatting
+            yield from _format_help(custom_help)
+            return
+
+    # Standard sphinx_click formatting with custom description
+    # description - use custom description formatting
     for line in _format_description(ctx):
         yield line
 
@@ -399,12 +536,6 @@ def _format_command_custom(
 
     for line in lines:
         yield line
-
-    # custom help content (if available)
-    custom_lines = list(_format_custom_help(ctx))
-    if custom_lines:
-        for line in custom_lines:
-            yield line
 
     # epilog
     for line in _format_epilog(ctx):
