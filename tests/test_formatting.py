@@ -2,18 +2,21 @@
 
 from textwrap import dedent
 
-import click
+from sphinx_click_custom.ext import (
+    _format_arguments,
+    _format_custom_help_as_description,
+    _format_description,
+    _format_envvars,
+    _format_help,
+    _format_options,
+    _format_usage,
+    _get_help_record,
+    _get_usage,
+    _intercept_and_replace_super_get_help,
+    _parse_custom_help_sections,
+)
 
-from sphinx_click_custom.ext import (_format_arguments,
-                                     _format_custom_help_as_description,
-                                     _format_description, _format_envvars,
-                                     _format_help, _format_options,
-                                     _format_usage, _get_help_record,
-                                     _get_usage,
-                                     _intercept_and_replace_super_get_help,
-                                     _parse_custom_help_sections)
-
-from .conftest import CustomCliCommand, sample_custom_command, standard_command
+from .conftest import sample_custom_command, standard_command
 
 
 def test_format_help_basic():

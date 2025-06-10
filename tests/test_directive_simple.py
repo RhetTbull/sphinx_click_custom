@@ -2,11 +2,9 @@
 
 import pytest
 
-from sphinx_click_custom.ext import (ClickCustomDirective, _get_click_object,
-                                     nested)
+from sphinx_click_custom.ext import ClickCustomDirective, _get_click_object, nested
 
-from .conftest import (sample_custom_command, sample_custom_group,
-                       standard_command)
+from .conftest import sample_custom_command, sample_custom_group, standard_command
 
 
 def test_directive_basic_properties():

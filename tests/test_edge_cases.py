@@ -6,9 +6,13 @@ import click
 import pytest
 
 from sphinx_click_custom.ext import (
-    _format_custom_help_as_description, _get_help_record,
+    _format_custom_help_as_description,
+    _get_help_record,
     _intercept_and_generate_sphinx_formatted_help,
-    _intercept_and_replace_super_get_help, _parse_custom_help_sections, nested)
+    _intercept_and_replace_super_get_help,
+    _parse_custom_help_sections,
+    nested,
+)
 
 
 class BrokenCustomCommand(click.Command):

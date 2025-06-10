@@ -1,7 +1,5 @@
 """Simplified integration tests."""
 
-import pytest
-
 from sphinx_click_custom.ext import setup
 
 
@@ -61,10 +59,15 @@ def test_extension_setup_function():
 def test_module_imports():
     """Test that all module components can be imported."""
     # Test main module imports
-    from sphinx_click_custom.ext import (ClickCustomDirective,
-                                         _format_description, _format_help,
-                                         _format_options, _format_usage,
-                                         _get_click_object, setup)
+    from sphinx_click_custom.ext import (
+        ClickCustomDirective,
+        _format_description,
+        _format_help,
+        _format_options,
+        _format_usage,
+        _get_click_object,
+        setup,
+    )
 
     # All imports should succeed
     assert ClickCustomDirective is not None

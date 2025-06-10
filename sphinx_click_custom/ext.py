@@ -543,7 +543,7 @@ def _format_command_custom(
 ) -> ty.Generator[str, None, None]:
     """Format the output of `click.Command` with custom help support."""
     if ctx.command.hidden:
-        return None
+        return
 
     # Check if we should use intercepted sphinx formatting
     if hasattr(ctx.command, "get_help") and callable(getattr(ctx.command, "get_help")):
@@ -641,9 +641,6 @@ def _format_command_custom(
     # if we're nesting commands, we need to do this slightly differently
     if nested in (NESTED_FULL, NESTED_NONE):
         return
-
-    # Note: Subcommand handling would go here if needed
-    # For now, we focus on single commands with custom help
 
 
 def nested(argument: ty.Optional[str]) -> NestedT:
