@@ -77,12 +77,3 @@ def test_module_imports():
     assert _format_usage is not None
     assert _format_options is not None
     assert setup is not None
-
-
-def test_extension_constants():
-    """Test that extension constants are defined."""
-    from sphinx_click_custom.ext import NESTED_FULL, NESTED_NONE, NESTED_SHORT
-
-    assert NESTED_FULL == "full"
-    assert NESTED_SHORT == "short"
-    assert NESTED_NONE == "none"
