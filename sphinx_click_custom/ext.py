@@ -35,9 +35,83 @@ NESTED_SHORT = "short"
 NESTED_NONE = "none"
 NestedT = ty.Literal["full", "short", "none", None]
 
-ANSI_ESC_SEQ_RE = re.compile(r"\x1B\[\d+(;\d+){0,2}m", flags=re.MULTILINE)
+# Comprehensive ANSI escape sequence regex that handles all common cases
+ANSI_ESC_SEQ_RE = re.compile(
+    r"\x1B(?:"
+    r"\[[\d;]*m|"  # Color sequences (including 24-bit RGB)
+    r"\[[\d;]*[ABCDEFGHJKSTfmsu]|"  # Cursor movement and other sequences
+    r"\][\d;]*(?:\x07|\x1B\\)|"  # Operating System Command sequences
+    r"[PX^_].*?(?:\x07|\x1B\\)|"  # Device Control Strings
+    r"\[[?]?\d*[hlr]"  # Set/reset mode sequences
+    r")",
+    flags=re.MULTILINE,
+)
 
 _T_Formatter = ty.Callable[[click.Context], ty.Generator[str, None, None]]
+
+# Unicode box drawing characters for detecting ASCII art
+BOX_DRAWING_CHARS = set("┌┐└┘├┤┬┴┼─│┏┓┗┛┣┫┳┻╋━┃╭╮╰╯╞╡╤╧╪╱╲╳")
+TREE_CHARS = set("└├─│")
+
+
+def _has_box_drawing(text: str) -> bool:
+    """Check if text contains box drawing characters."""
+    return any(char in BOX_DRAWING_CHARS for char in text)
+
+
+def _has_tree_structure(text: str) -> bool:
+    """Check if text contains tree structure characters."""
+    return any(char in TREE_CHARS for char in text)
+
+
+def _looks_like_ascii_art(lines: ty.List[str]) -> bool:
+    """
+    Determine if a block of lines looks like ASCII art that should be in a code block.
+
+    Returns True if:
+    - Contains box drawing characters
+    - Contains tree structure characters
+    - Has consistent indentation suggesting structure
+    - Multiple lines with special characters
+    - Looks like a directory tree or table structure
+    """
+    if not lines:
+        return False
+
+    # Check for box drawing or tree characters
+    art_lines = 0
+    heavily_indented = 0
+
+    for line in lines:
+        if _has_box_drawing(line) or _has_tree_structure(line):
+            art_lines += 1
+
+        # Count heavily indented lines (likely part of structured content)
+        stripped = line.lstrip()
+        if stripped and len(line) - len(stripped) >= 4:  # 4+ spaces of indentation
+            heavily_indented += 1
+
+    # If any lines have special characters, it's likely ASCII art
+    if art_lines >= 1:
+        return True
+
+    # If most lines are heavily indented and we have multiple lines, it's structured content
+    if len(lines) >= 2 and heavily_indented >= len(lines) * 0.5:
+        return True
+
+    # Check for directory-like patterns (paths with slashes)
+    directory_lines = 0
+    for line in lines:
+        stripped = line.strip()
+        if "/" in stripped and (
+            stripped.startswith("/") or "└" in line or "├" in line or "│" in line
+        ):
+            directory_lines += 1
+
+    if directory_lines >= 2:
+        return True
+
+    return False
 
 
 def _process_lines(event_name: str) -> ty.Callable[[_T_Formatter], _T_Formatter]:
@@ -163,19 +237,86 @@ def _get_click_object(import_name: str) -> click.Command:
 
 def _format_help(help_string: str) -> ty.Generator[str, None, None]:
     """Format help text by handling ANSI escape sequences and special formatting."""
+    # First, clean ANSI escape sequences
     help_string = inspect.cleandoc(ANSI_ESC_SEQ_RE.sub("", help_string))
 
+    # Split into lines for processing
+    lines = statemachine.string2lines(help_string, tab_width=4, convert_whitespace=True)
+
+    i = 0
     bar_enabled = False
-    for line in statemachine.string2lines(
-        help_string, tab_width=4, convert_whitespace=True
-    ):
+
+    while i < len(lines):
+        line = lines[i]
+
+        # Handle bar mode (existing click functionality)
         if line == "\b":
             bar_enabled = True
+            i += 1
             continue
         if line == "":
             bar_enabled = False
-        line = "| " + line if bar_enabled else line
+
+        # Apply bar formatting if enabled
+        if bar_enabled:
+            yield "| " + line
+            i += 1
+            continue
+
+        # Check for ASCII art blocks - look for patterns that suggest structured content
+        should_check_for_art = (
+            _has_box_drawing(line)
+            or _has_tree_structure(line)
+            or (
+                line.strip() and len(line) - len(line.lstrip()) >= 4
+            )  # Heavy indentation
+        )
+
+        if should_check_for_art:
+            # Collect consecutive lines that might be part of ASCII art
+            art_lines = []
+            j = i
+
+            # Look ahead to find the extent of the ASCII art block
+            while j < len(lines):
+                current_line = lines[j]
+
+                # Stop at empty lines that separate blocks
+                if current_line.strip() == "":
+                    break
+
+                art_lines.append(current_line)
+                j += 1
+
+                # Continue collecting if the next line looks related
+                if j < len(lines) and lines[j].strip():
+                    next_line = lines[j]
+                    # Continue if it has special chars, heavy indentation, or matches pattern
+                    continues = (
+                        _has_box_drawing(next_line)
+                        or _has_tree_structure(next_line)
+                        or (
+                            len(next_line) - len(next_line.lstrip()) >= 4
+                        )  # Consistent indentation
+                    )
+                    if not continues:
+                        break
+
+            # If this looks like ASCII art, format as code block
+            if _looks_like_ascii_art(art_lines):
+                yield ""
+                yield ".. code-block:: text"
+                yield ""
+                for art_line in art_lines:
+                    yield "    " + art_line
+                yield ""
+                i = j
+                continue
+
+        # Regular text line
         yield line
+        i += 1
+
     yield ""
 
 
