@@ -222,7 +222,7 @@ Document with:
 
 ## Compatibility
 
-- **Python**: 3.9+
+- **Python**: 3.10+
 - **Sphinx**: 4.0+
 - **Click**: 7.0+
 - **sphinx_click**: 4.0+
