@@ -64,6 +64,34 @@ def _has_tree_structure(text: str) -> bool:
     return any(char in TREE_CHARS for char in text)
 
 
+def _looks_like_tree_start(lines: ty.List[str], current_index: int) -> bool:
+    """
+    Check if a "/" line is the start of a directory tree structure.
+
+    Look ahead to see if there are tree characters following this root.
+    """
+    if current_index >= len(lines):
+        return False
+
+    # Look ahead up to 5 lines to find tree structure
+    for i in range(current_index + 1, min(current_index + 6, len(lines))):
+        line = lines[i]
+        # Skip empty lines
+        if line.strip() == "":
+            continue
+        # If we find tree characters, this is likely a tree start
+        if _has_tree_structure(line):
+            return True
+        # If we find non-tree heavily indented content, it might be part of a tree
+        if line.strip() and len(line) - len(line.lstrip()) >= 4:
+            return True
+        # If we find regular text with no indentation, probably not a tree
+        if line.strip() and len(line) - len(line.lstrip()) < 4:
+            return False
+
+    return False
+
+
 def _looks_like_ascii_art(lines: ty.List[str]) -> bool:
     """
     Determine if a block of lines looks like ASCII art that should be in a code block.
@@ -270,37 +298,69 @@ def _format_help(help_string: str) -> ty.Generator[str, None, None]:
             or (
                 line.strip() and len(line) - len(line.lstrip()) >= 4
             )  # Heavy indentation
+            or (
+                line.strip() == "/" and _looks_like_tree_start(lines, i)
+            )  # Root directory
         )
 
         if should_check_for_art:
             # Collect consecutive lines that might be part of ASCII art
             art_lines = []
             j = i
+            empty_line_buffer = []
 
             # Look ahead to find the extent of the ASCII art block
             while j < len(lines):
                 current_line = lines[j]
 
-                # Stop at empty lines that separate blocks
+                # Handle empty lines - they might separate parts of the same structure
                 if current_line.strip() == "":
-                    break
+                    empty_line_buffer.append(current_line)
+                    j += 1
 
-                art_lines.append(current_line)
-                j += 1
-
-                # Continue collecting if the next line looks related
-                if j < len(lines) and lines[j].strip():
-                    next_line = lines[j]
-                    # Continue if it has special chars, heavy indentation, or matches pattern
-                    continues = (
-                        _has_box_drawing(next_line)
-                        or _has_tree_structure(next_line)
-                        or (
-                            len(next_line) - len(next_line.lstrip()) >= 4
-                        )  # Consistent indentation
-                    )
-                    if not continues:
+                    # Look ahead to see if there's more related content after empty lines
+                    if j < len(lines):
+                        next_line = lines[j]
+                        if (
+                            _has_tree_structure(next_line)
+                            or _has_box_drawing(next_line)
+                            or (
+                                next_line.strip()
+                                and len(next_line) - len(next_line.lstrip()) >= 4
+                            )
+                        ):
+                            # Add the buffered empty lines and continue
+                            art_lines.extend(empty_line_buffer)
+                            empty_line_buffer = []
+                            continue
+                        else:
+                            # No more related content, stop here
+                            break
+                    else:
+                        # End of lines, stop
                         break
+                else:
+                    # Non-empty line, add any buffered empty lines first
+                    art_lines.extend(empty_line_buffer)
+                    empty_line_buffer = []
+                    art_lines.append(current_line)
+                    j += 1
+
+                    # Check if we should continue collecting
+                    if j < len(lines):
+                        next_line = lines[j]
+                        continues = (
+                            _has_box_drawing(next_line)
+                            or _has_tree_structure(next_line)
+                            or (
+                                next_line.strip()
+                                and len(next_line) - len(next_line.lstrip()) >= 4
+                            )
+                            or next_line.strip()
+                            == ""  # Allow empty lines within structures
+                        )
+                        if not continues:
+                            break
 
             # If this looks like ASCII art, format as code block
             if _looks_like_ascii_art(art_lines):
