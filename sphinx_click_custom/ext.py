@@ -506,6 +506,26 @@ def _intercept_and_replace_super_get_help(ctx: click.Context) -> str:
     return standard_description
 
 
+def _format_subcommands(
+    ctx: click.Context, commands: ty.Optional[ty.List[str]] = None
+) -> ty.Generator[str, None, None]:
+    """Format subcommands for a click.Group."""
+    multicommand = ctx.command
+    if not isinstance(multicommand, click.Group):
+        return
+
+    for name in multicommand.list_commands(ctx):
+        if commands is not None and name not in commands:
+            continue
+
+        command = multicommand.get_command(ctx, name)
+        if command is None or command.hidden:
+            continue
+
+        short_help = command.get_short_help_str(limit=50)
+        yield f":{name}: {short_help}"
+
+
 def _format_custom_help_as_description(
     ctx: click.Context,
 ) -> ty.Generator[str, None, None]:
@@ -587,6 +607,16 @@ def _format_command_custom(
                 if after:
                     yield from _format_help(after)
 
+                # Handle nested commands even for custom commands
+                if nested not in (NESTED_FULL, NESTED_NONE):
+                    if nested == NESTED_SHORT and isinstance(ctx.command, click.Group):
+                        lines = list(_format_subcommands(ctx, commands))
+                        if lines:
+                            yield ".. rubric:: Commands"
+                            yield ""
+                            for line in lines:
+                                yield line
+
                 return
 
         except Exception as e:
@@ -641,6 +671,15 @@ def _format_command_custom(
     # if we're nesting commands, we need to do this slightly differently
     if nested in (NESTED_FULL, NESTED_NONE):
         return
+
+    # Handle nested commands for NESTED_SHORT
+    if nested == NESTED_SHORT and isinstance(ctx.command, click.Group):
+        lines = list(_format_subcommands(ctx, commands))
+        if lines:
+            yield ".. rubric:: Commands"
+            yield ""
+            for line in lines:
+                yield line
 
 
 def nested(argument: ty.Optional[str]) -> NestedT:
@@ -715,7 +754,40 @@ class ClickCustomDirective(SphinxDirective):
 
         sphinx_nodes.nested_parse_with_titles(self.state, result, section)
 
+        # Handle nested commands for NESTED_FULL
+        if nested == NESTED_FULL and isinstance(command, click.Group):
+            subsections = self._generate_nested_nodes(ctx, nested, commands, env)
+            section.extend(subsections)
+
         return [section]
+
+    def _generate_nested_nodes(
+        self,
+        ctx: click.Context,
+        nested: NestedT,
+        commands: ty.Optional[ty.List[str]],
+        env,
+    ) -> ty.List[nodes.section]:
+        """Generate nodes for nested subcommands."""
+        nodes_list = []
+        multicommand = ctx.command
+
+        if not isinstance(multicommand, click.Group):
+            return nodes_list
+
+        for name in multicommand.list_commands(ctx):
+            if commands is not None and name not in commands:
+                continue
+
+            command = multicommand.get_command(ctx, name)
+            if command is None or command.hidden:
+                continue
+
+            # Generate documentation for this subcommand
+            subsections = self._generate_nodes(name, command, ctx, nested, env)
+            nodes_list.extend(subsections)
+
+        return nodes_list
 
     def run(self) -> ty.List[nodes.section]:
         """Generate documentation nodes for the click command."""
