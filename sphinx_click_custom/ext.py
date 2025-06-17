@@ -557,11 +557,34 @@ def _parse_custom_help_sections(help_text: str) -> ty.Dict[str, str]:
     custom_content = re.sub(r"\n\s*\n\s*\n+", "\n\n", custom_content.strip())
 
     # Remove excessive indentation that might cause blockquote formatting
+    # while preserving relative indentation for ASCII art and trees
     lines = custom_content.splitlines()
     processed_lines = []
-    for line in lines:
-        # Remove leading whitespace but preserve relative indentation
-        processed_lines.append(line.strip())
+
+    if lines:
+        # Find the minimum indentation of non-empty lines
+        min_indent = float("inf")
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                indent = len(line) - len(line.lstrip())
+                min_indent = min(min_indent, indent)
+
+        # If all lines are empty or no indentation found, set to 0
+        if min_indent == float("inf"):
+            min_indent = 0
+
+        # Remove only the common minimum indentation to preserve relative structure
+        for line in lines:
+            if line.strip():  # Non-empty line
+                # Remove the minimum indentation but keep relative indentation
+                if len(line) >= min_indent:
+                    processed_lines.append(line[min_indent:])
+                else:
+                    # Line has less indentation than minimum (shouldn't happen)
+                    processed_lines.append(line.lstrip())
+            else:
+                # Empty line
+                processed_lines.append("")
 
     custom_content = "\n".join(processed_lines)
 
