@@ -116,68 +116,58 @@ Third section."""
 
 
 def test_backspace_without_surrounding_blank_lines():
-    """Test \\b characters that are not surrounded by blank lines.
-
-    Note: Our current implementation removes all \\b characters, so this tests
-    that the content flows naturally without bar mode formatting, even when
-    \\b appears inline with other content.
-    """
+    """Test \\b characters that are adjacent to content (legitimate bar mode)."""
     text_with_inline_backspace = """Regular paragraph text.
 \b
-This would have been bar mode in original sphinx_click.
+This should be bar formatted
+This should also be bar formatted
 \b
-Another line that would have been bar formatted.
 More regular text continues here."""
 
     lines = list(_format_help(text_with_inline_backspace))
 
-    # Should not have any bar mode formatting (no lines starting with "| ")
+    # Should have bar mode formatting for adjacent \b
     bar_lines = [line for line in lines if line.startswith("| ")]
-    assert len(bar_lines) == 0, f"Found unexpected bar mode lines: {bar_lines}"
+    assert len(bar_lines) == 2, f"Expected 2 bar mode lines, got {len(bar_lines)}"
 
-    # All content should be present as regular text
-    expected_content = [
-        "Regular paragraph text.",
-        "This would have been bar mode",
-        "Another line that would have been bar formatted.",
-        "More regular text continues here.",
+    # Check specific bar mode content
+    assert "| This should be bar formatted" in bar_lines
+    assert "| This should also be bar formatted" in bar_lines
+
+    # Regular text should not be bar formatted
+    regular_lines = [
+        line for line in lines if not line.startswith("| ") and line.strip()
     ]
-
-    for content in expected_content:
-        found = any(content in line for line in lines)
-        assert found, f"Content '{content}' should be present as regular text"
-
-    # Should not create any code blocks for this simple text
-    code_blocks = [line for line in lines if ".. code-block::" in line]
-    assert len(code_blocks) == 0, f"Unexpected code blocks: {code_blocks}"
+    assert "Regular paragraph text." in regular_lines
+    assert "More regular text continues here." in regular_lines
 
 
-def test_demonstrates_original_bar_mode_behavior():
-    """Demonstrate what the original bar mode behavior would have looked like.
+def test_floating_vs_adjacent_backspace():
+    """Test the difference between floating \\b (removed) and adjacent \\b (bar mode)."""
 
-    This is a documentation test showing the difference between our current
-    behavior (removing \\b) and the original sphinx_click bar mode behavior.
-    """
-    # This is what the input would look like
-    original_input = """Some intro text.
+    # Floating \b should be removed (osxphotos style)
+    floating_input = """Some intro text.
+
 \b
-Line that would be bar formatted
+
+This should be regular text.
+More regular text."""
+
+    floating_lines = list(_format_help(floating_input))
+    bar_lines = [line for line in floating_lines if line.startswith("| ")]
+    assert len(bar_lines) == 0, "Floating \\b should not trigger bar mode"
+
+    # Adjacent \b should trigger bar mode (legitimate use)
+    adjacent_input = """Some intro text.
+\b
+This should be bar formatted
 Another bar formatted line
 \b
 Back to regular text."""
 
-    # Our current implementation simply removes \\b characters
-    current_lines = list(_format_help(original_input))
+    adjacent_lines = list(_format_help(adjacent_input))
+    bar_lines = [line for line in adjacent_lines if line.startswith("| ")]
+    assert len(bar_lines) == 2, "Adjacent \\b should trigger bar mode"
 
-    # Verify no bar mode formatting
-    bar_lines = [line for line in current_lines if line.startswith("| ")]
-    assert len(bar_lines) == 0
-
-    # Content should flow as regular text
-    content_found = any(
-        "Line that would be bar formatted" in line for line in current_lines
-    )
-    assert content_found, "Content should appear as regular text"
-
-    # This documents the intentional change: we prioritize clean paragraph flow
-    # over preserving the original Click bar mode formatting behavior
+    assert "| This should be bar formatted" in bar_lines
+    assert "| Another bar formatted line" in bar_lines

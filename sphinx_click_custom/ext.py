@@ -54,6 +54,44 @@ BOX_DRAWING_CHARS = set("┌┐└┘├┤┬┴┼─│┏┓┗┛┣┫┳�
 TREE_CHARS = set("└├─│")
 
 
+def _remove_floating_backspace_characters(text: str) -> str:
+    """Remove floating \\b characters that are isolated between blank lines.
+
+    Preserves \\b characters that are adjacent to content (for legitimate bar mode)
+    but removes \\b characters that are surrounded by blank lines (floating)
+
+    Args:
+        text: Input text that may contain \\b characters
+
+    Returns:
+        Text with floating \\b characters removed
+    """
+    lines = text.splitlines()
+    result_lines = []
+
+    for i, line in enumerate(lines):
+        # Check if this line is a standalone \b character
+        if line.strip() == "\b":
+            # Check if the immediately adjacent lines (prev and next) are blank
+            prev_is_blank = (i == 0) or (i > 0 and lines[i - 1].strip() == "")
+            next_is_blank = (i == len(lines) - 1) or (
+                i < len(lines) - 1 and lines[i + 1].strip() == ""
+            )
+
+            # Remove \b if it's surrounded by blank lines (floating)
+            # Keep \b if it's adjacent to content (legitimate bar mode)
+            if prev_is_blank and next_is_blank:
+                # This is a floating \b, skip it
+                continue
+            else:
+                # This \b is adjacent to content, keep it for bar mode
+                result_lines.append(line)
+        else:
+            result_lines.append(line)
+
+    return "\n".join(result_lines)
+
+
 def _has_box_drawing(text: str) -> bool:
     """Check if text contains box drawing characters."""
     return any(char in BOX_DRAWING_CHARS for char in text)
@@ -265,20 +303,35 @@ def _get_click_object(import_name: str) -> click.Command:
 
 def _format_help(help_string: str) -> ty.Generator[str, None, None]:
     """Format help text by handling ANSI escape sequences and special formatting."""
-    # First, clean ANSI escape sequences and \b characters
+    # First, clean ANSI escape sequences
     help_string = inspect.cleandoc(ANSI_ESC_SEQ_RE.sub("", help_string))
 
-    # Remove \b characters that are used for line breaks in terminal markdown
-    # but should not trigger bar mode in documentation
-    help_string = help_string.replace("\b", "")
+    # Remove floating \b characters that are isolated between blank lines
+    # but preserve \b characters that are adjacent to content (for legitimate bar mode)
+    help_string = _remove_floating_backspace_characters(help_string)
 
     # Split into lines for processing
     lines = statemachine.string2lines(help_string, tab_width=4, convert_whitespace=True)
 
     i = 0
+    bar_enabled = False
 
     while i < len(lines):
         line = lines[i]
+
+        # Handle bar mode (restored functionality for legitimate use cases)
+        if line == "\b":
+            bar_enabled = not bar_enabled  # Toggle bar mode
+            i += 1
+            continue
+        if line == "":
+            bar_enabled = False
+
+        # Apply bar formatting if enabled
+        if bar_enabled:
+            yield "| " + line
+            i += 1
+            continue
 
         # Check for ASCII art blocks - look for patterns that suggest structured content
         should_check_for_art = (
@@ -408,11 +461,19 @@ def _format_option(
     yield ".. option:: {}".format(opt_help[0])
     if opt_help[1]:
         yield ""
-        # Clean ANSI and \b characters from option help text
-        cleaned_help = ANSI_ESC_SEQ_RE.sub("", opt_help[1]).replace("\b", "")
+        # Clean ANSI and floating \b characters from option help text
+        cleaned_help = ANSI_ESC_SEQ_RE.sub("", opt_help[1])
+        cleaned_help = _remove_floating_backspace_characters(cleaned_help)
+        bar_enabled = False
         for line in statemachine.string2lines(
             cleaned_help, tab_width=4, convert_whitespace=True
         ):
+            if line == "\b":
+                bar_enabled = True
+                continue
+            if line == "":
+                bar_enabled = False
+            line = "| " + line if bar_enabled else line
             yield _indent(line)
 
 
