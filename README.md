@@ -251,3 +251,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Acknowledgments
 
 - Built on top of the excellent [sphinx_click](https://github.com/click-contrib/sphinx-click) by Stephen Finucane
+- This plugin was built with significant help from AI, specifically, [Claude code](https://www.anthropic.com/claude-code), using the Sonet 4.0 model. If you don't want to use AI generated code, then don't use this package.
