@@ -4,9 +4,9 @@ A Sphinx extension for documenting Click CLI commands that use custom `get_help(
 
 ## The Problem
 
-The standard [`sphinx_click`](https://github.com/click-contrib/sphinx-click) extension is excellent for documenting Click commands, but it has a significant limitation: **it only uses the command's docstring and ignores custom `get_help()` methods**.
+The standard [`sphinx_click`](https://github.com/click-contrib/sphinx-click) extension is excellent for documenting Click commands, but it has a significant limitation: **it only uses the command's docstring and standard Click help output and ignores custom `get_help()` methods**.
 
-Many advanced CLI applications override the `get_help()` method to provide enhanced help text with additional context, examples, or custom formatting. However, when you try to document these commands with `sphinx_click`, you lose all the custom help content.
+I write a lot of CLI applications that override the `get_help()` method to provide enhanced help text with additional context, examples, or custom formatting. However, when trying to document these commands with `sphinx_click`, you lose all the custom help content.
 
 ### Example of the Problem
 
@@ -43,20 +43,19 @@ def process(format, limit):
     click.echo(f"Processing with format: {format}")
 ```
 
-When you run `myapp process --help` in the terminal, you see the beautiful custom help with emojis, examples, and additional context. But when you document it with standard `sphinx_click`, you only get the basic docstring "Process data files with various formats." - all the custom content is lost!
+When you run `myapp process --help` in the terminal, you see the custom help with examples and additional context. But when you document it with standard `sphinx_click`, you only get the basic docstring "Process data files with various formats." - all the custom content is lost.
 
 ## The Solution: sphinx_click_custom
 
-`sphinx_click_custom` solves this problem by **intercepting calls to `super().get_help()`** and seamlessly integrating custom help content while maintaining sphinx_click's superior formatting for options, arguments, and other elements.
+`sphinx_click_custom` solves this problem by **intercepting calls to `super().get_help()`** and seamlessly integrating custom help content while maintaining sphinx_click's formatting for options, arguments, and other elements.
 
 ### Key Features
 
-✅ **Preserves custom help content** - All your enhanced help text is captured  
-✅ **Maintains sphinx_click formatting** - Options, arguments, and usage are formatted identically to sphinx_click  
-✅ **Perfect inline placement** - Custom content appears exactly where you intended  
-✅ **Zero code changes required** - Works with existing custom Click commands  
-✅ **Automatic detection** - Intelligently handles different custom help patterns  
-✅ **Full Click feature support** - Works with groups, subcommands, arguments, environment variables, etc.
+* **Preserves custom help content** - All your enhanced help text is captured
+* **Maintains sphinx_click formatting** - Options, arguments, and usage are formatted identically to sphinx_click
+* **Perfect inline placement** - Custom content appears exactly where you intended
+* **Zero code changes required** - Works with existing custom Click commands
+* **Full Click feature support** - Works with groups, subcommands, arguments, environment variables, etc.
 
 ## Installation
 
@@ -68,30 +67,15 @@ pip install sphinx_click_custom
 
 ### Testing
 
-The project includes a comprehensive test suite using pytest with **50 tests** and **66% code coverage**:
-
 ```bash
 # Install development dependencies
 pip install -e ".[test]"
 
-# Run all tests (50 tests)
-pytest tests/
+pytest -vv tests/
 
-# Run tests with coverage report
-pytest tests/ --cov=sphinx_click_custom --cov-report=term-missing
-
-# Run specific test categories
-pytest tests/test_formatting.py -v         # Core formatting (19 tests)
-pytest tests/test_edge_cases.py -v         # Edge cases & error handling (17 tests)  
-pytest tests/test_simple.py -v             # Basic functionality (4 tests)
-pytest tests/test_directive_simple.py -v   # Directive functionality (6 tests)
-pytest tests/test_integration_simple.py -v # Integration tests (4 tests)
-
-# Use convenient test runner script
-python tests/test_runner.py --coverage
+# with coverage
+pytest -vv tests/ --cov=sphinx_click_custom --cov-report=term-missing
 ```
-
-**Test Results**: ✅ 50/50 passing, ✅ 66% coverage, ✅ All mypy checks pass
 
 ### Type Checking
 
@@ -120,7 +104,23 @@ extensions = [
 Use the `click-custom` directive instead of `click` for commands with custom help:
 
 ```rst
-.. click-custom:: mymodule:process
+Simple Custom Help Example:
+___________________________
+
+.. click-custom:: cli_custom:cli
+   :prog: cli
+
+CLI Example with Custom Help and Groups:
+__________________________
+
+Main command group with global options:
+
+.. click-custom:: cli_comprehensive:cli
+   :prog: myapp
+
+Process command with arguments and various option types:
+
+.. click-custom:: cli_comprehensive:process
    :prog: myapp process
 ```
 
@@ -161,7 +161,7 @@ This tool provides enhanced functionality with custom help.
 Process data files with various formats.
 
 📝 EXAMPLES:
-- myapp process input.csv --format json  
+- myapp process input.csv --format json
 - myapp process data.xml --format xml --limit 100
 
 For more help, visit: https://docs.example.com
@@ -171,21 +171,19 @@ Usage: myapp process [OPTIONS]
 Options:
   --format <format>        [default: csv]
                           Options: csv | json | xml
-  --limit <limit>          Maximum records to process  
+  --limit <limit>          Maximum records to process
   --help                   Show this message and exit.
 ```
 
-**Result**: You get ALL the custom content exactly where it should appear, PLUS professional sphinx_click formatting for the options!
-
 ## How It Works
 
-The plugin uses an innovative **interception approach**:
+The plugin uses an **interception approach**:
 
 1. **Intercepts `super().get_help()` calls** by temporarily replacing the parent class method
-2. **Captures the call location** using a unique marker 
+2. **Captures the call location** using a unique marker
 3. **Splits custom content** into "before" and "after" sections around the marker
 4. **Generates sphinx-formatted sections** for usage, options, arguments, etc.
-5. **Combines everything** with perfect inline placement
+5. **Combines everything** with inline placement
 
 This approach is robust because it doesn't try to parse the help text - it intercepts the actual method calls and replaces them with properly formatted sphinx content.
 
@@ -218,25 +216,13 @@ Document with:
 .. click-custom:: mymodule:database
    :prog: myapp database
 
-.. click-custom:: mymodule:backup  
+.. click-custom:: mymodule:backup
    :prog: myapp database backup
 ```
 
-### Environment Variables and Complex Options
-
-The plugin handles all Click features:
-
-- ✅ **Environment variables** - Properly documented with `:envvar:` directives
-- ✅ **Required options** - Marked with **Required** 
-- ✅ **Choice constraints** - Shown as `Options: A | B | C`
-- ✅ **Default values** - Formatted as `:default: value`
-- ✅ **Multiple options** - `--include` (can be used multiple times)
-- ✅ **Boolean flags** - `--flag/--no-flag`
-- ✅ **Arguments** - Required, optional, and multiple arguments
-
 ## Compatibility
 
-- **Python**: 3.7+
+- **Python**: 3.9+
 - **Sphinx**: 4.0+
 - **Click**: 7.0+
 - **sphinx_click**: 4.0+
@@ -250,10 +236,9 @@ Use `sphinx_click_custom` when you have Click commands that:
 - Override the `get_help()` method
 - Add custom content before/after standard help
 - Include examples, additional notes, or enhanced formatting
-- Use emojis, colors, or special formatting in help text
 - Need to preserve the exact structure of custom help
 
-For standard Click commands without custom help methods, continue using the excellent `sphinx_click` plugin.
+For standard Click commands without custom help methods, continue using the `sphinx_click` plugin.
 
 ## License
 
@@ -266,4 +251,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Acknowledgments
 
 - Built on top of the excellent [sphinx_click](https://github.com/click-contrib/sphinx-click) by Stephen Finucane
-- Inspired by the need to document complex CLI applications with custom help formatting
