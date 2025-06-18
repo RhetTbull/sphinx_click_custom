@@ -7,7 +7,7 @@ name = "sphinx_click_custom"
 authors = [{name = "Rhet Turnbull", email = "rturnbull+git@gmail.com"}]
 license = "MIT"
 license-files = ["LICENSE"]
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.10"
 dynamic = ["description"]
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
     "click>=7.0",
     "docutils"
 ]
+readme="README.md"
 
 [project.optional-dependencies]
 test = [
