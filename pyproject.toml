@@ -7,7 +7,7 @@ name = "sphinx_click_custom"
 authors = [{name = "Rhet Turnbull", email = "rturnbull+git@gmail.com"}]
 license = "MIT"
 license-files = ["LICENSE"]
-version = "0.1.1"
+version = "0.2.0"
 requires-python = ">=3.10"
 dynamic = ["description"]
 dependencies = [
@@ -23,11 +23,12 @@ test = [
     "pytest-cov"
 ]
 dev = [
+    "flit",
     "pytest>=6.0",
     "pytest-cov",
     "mypy",
     "black",
-    "flake8"
+    "isort",
 ]
 
 [project.urls]

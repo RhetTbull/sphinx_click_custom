@@ -130,6 +130,69 @@ def _looks_like_tree_start(lines: ty.List[str], current_index: int) -> bool:
     return False
 
 
+def _looks_like_isolated_header(lines: ty.List[str], current_index: int) -> bool:
+    """
+    Check if a line looks like an isolated header that might be interpreted as a blockquote.
+
+    Returns True if:
+    - Line is non-empty and has meaningful content
+    - Line is relatively short (likely a title/header)
+    - Line is not heavily indented (not code)
+    - Previous line contains content (not already separated)
+    - Next line either continues content or is empty
+    """
+    if current_index >= len(lines):
+        return False
+
+    line = lines[current_index]
+
+    # Must have content
+    if not line.strip():
+        return False
+
+    # Don't treat heavily indented lines as headers (likely code/examples)
+    if len(line) - len(line.lstrip()) >= 4:
+        return False
+
+    # Don't treat very long lines as headers
+    if len(line.strip()) > 100:
+        return False
+
+    # Check if this looks like a section header pattern
+    stripped = line.strip()
+
+    # Common header patterns that might become blockquotes
+    header_indicators = [
+        # Title case words
+        lambda s: s
+        and s[0].isupper()
+        and " " in s
+        and all(word[0].isupper() for word in s.split() if word and word[0].isalpha()),
+        # Short descriptive phrases
+        lambda s: len(s.split()) <= 6 and not s.endswith(".") and not s.startswith("-"),
+        # Single capitalized words
+        lambda s: len(s.split()) == 1 and s[0].isupper() and len(s) > 2,
+    ]
+
+    is_header_like = any(check(stripped) for check in header_indicators)
+
+    if not is_header_like:
+        return False
+
+    # Check context - should have content before and after
+    has_content_before = (
+        current_index > 0
+        and lines[current_index - 1].strip() != ""
+        and not lines[current_index - 1].strip().endswith(":")  # Not a lead-in line
+    )
+
+    has_content_after = (
+        current_index + 1 < len(lines) and lines[current_index + 1].strip() != ""
+    )
+
+    return has_content_before and has_content_after
+
+
 def _looks_like_ascii_art(lines: ty.List[str]) -> bool:
     """
     Determine if a block of lines looks like ASCII art that should be in a code block.
@@ -330,6 +393,19 @@ def _format_help(help_string: str) -> ty.Generator[str, None, None]:
         # Apply bar formatting if enabled
         if bar_enabled:
             yield "| " + line
+            i += 1
+            continue
+
+        # Check for isolated header-like lines that might become blockquotes
+        # and ensure they are properly formatted to prevent this
+        if _looks_like_isolated_header(lines, i):
+            # Add a blank line before if needed to prevent blockquote formation
+            if i > 0 and lines[i - 1].strip() != "":
+                yield ""
+            yield line
+            # Add a blank line after if there's content following
+            if i + 1 < len(lines) and lines[i + 1].strip() != "":
+                yield ""
             i += 1
             continue
 
@@ -617,6 +693,8 @@ def _parse_custom_help_sections(help_text: str) -> ty.Dict[str, str]:
         # If all lines are empty or no indentation found, set to 0
         if min_indent == float("inf"):
             min_indent = 0
+        else:
+            min_indent = int(min_indent)
 
         # Remove only the common minimum indentation to preserve relative structure
         for line in lines:
@@ -1038,7 +1116,7 @@ class ClickCustomDirective(SphinxDirective):
         env,
     ) -> ty.List[nodes.section]:
         """Generate nodes for nested subcommands."""
-        nodes_list = []
+        nodes_list: ty.List[nodes.section] = []
         multicommand = ctx.command
 
         if not isinstance(multicommand, click.Group):
