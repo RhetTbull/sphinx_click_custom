@@ -63,29 +63,6 @@ When you run `myapp process --help` in the terminal, you see the custom help wit
 pip install sphinx_click_custom
 ```
 
-## Development
-
-### Testing
-
-```bash
-# Install development dependencies
-pip install -e ".[test]"
-
-pytest -vv tests/
-
-# with coverage
-pytest -vv tests/ --cov=sphinx_click_custom --cov-report=term-missing
-```
-
-### Type Checking
-
-Ensure code passes mypy type checking:
-
-```bash
-pip install mypy
-mypy sphinx_click_custom/
-```
-
 ## Usage
 
 ### 1. Add to Sphinx Configuration
@@ -248,7 +225,35 @@ MIT License. This project incorporates code adapted from [sphinx_click](https://
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Development
+
+### Testing
+
+```bash
+# Install development dependencies
+pip install -e ".[test]"
+
+pytest -vv tests/
+
+# with coverage
+pytest -vv tests/ --cov=sphinx_click_custom --cov-report=term-missing
+```
+
+### Type Checking
+
+Ensure code passes mypy type checking:
+
+```bash
+pip install mypy
+mypy sphinx_click_custom/
+```
+
+## Notes
+- This plugin was built with significant help from AI, specifically, [Claude code](https://www.anthropic.com/claude-code), using the Sonet 4.0 model. If you don't want to use AI generated code, then don't use this package.
+- This plugin includes handling for special cases in the help text that I use in some of my projects including use of `\b` for linebreaks and detection of ASCII art for formatting. It is in the "works on my projects" use cases.
+- If you discover any issues or have suggestions for improvement, please open an issue or submit a pull request.
+- I did a [talk](https://github.com/RhetTbull/hsvpyppp) for my local python meetup ([HSV.py](https://www.meetup.com/hsv-py/)) on how I built this plugin with the help of Claude Code.
+
 ## Acknowledgments
 
 - Built on top of the excellent [sphinx_click](https://github.com/click-contrib/sphinx-click) by Stephen Finucane
-- This plugin was built with significant help from AI, specifically, [Claude code](https://www.anthropic.com/claude-code), using the Sonet 4.0 model. If you don't want to use AI generated code, then don't use this package.
