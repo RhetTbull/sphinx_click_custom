@@ -762,17 +762,24 @@ def _intercept_and_generate_sphinx_formatted_help(
             if len(parts) >= 2:
                 custom_content_before = parts[0].strip()
                 custom_content_after = parts[1].strip() if len(parts) > 1 else ""
+                # Generate the sphinx-formatted help content for the intercepted context
+                if intercepted_calls:
+                    intercepted_ctx = intercepted_calls[0]
+
+                    # Generate sphinx-formatted sections as a special marker
+                    # We'll handle this differently in the main function
+                    sphinx_formatted_help = "<<<SPHINX_SECTIONS>>>"
+                    return (
+                        custom_content_before,
+                        custom_content_after,
+                        sphinx_formatted_help,
+                    )
             else:
                 # Marker not found, treat all as custom content
                 custom_content_before = custom_help.strip()
-
-            # Generate the sphinx-formatted help content for the intercepted context
-            if intercepted_calls:
-                intercepted_ctx = intercepted_calls[0]
-
-                # Generate sphinx-formatted sections as a special marker
-                # We'll handle this differently in the main function
-                sphinx_formatted_help = "<<<SPHINX_SECTIONS>>>"
+                custom_content_after = ""
+                # Return empty sphinx_formatted_help to signal no standard section processing
+                sphinx_formatted_help = ""
                 return (
                     custom_content_before,
                     custom_content_after,
