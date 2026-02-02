@@ -2,12 +2,17 @@
 
 from textwrap import dedent
 
+import click
+
 from sphinx_click_custom.ext import (
+    NESTED_FULL,
     _format_arguments,
+    _format_command_custom,
     _format_custom_help_as_description,
     _format_description,
     _format_envvars,
     _format_help,
+    _format_option,
     _format_options,
     _format_usage,
     _get_help_record,
@@ -258,3 +263,82 @@ def test_parse_custom_help_sections_no_standard_sections():
     assert "custom" in sections
     assert sections["custom"] == help_text
     assert "usage" not in sections
+
+
+def test_format_option_escapes_asterisks(click_context):
+    """Test that asterisks in option help text are escaped for RST."""
+
+    @click.command()
+    @click.option("--glob", help="Glob pattern, e.g. *.jpg or photos/*.png")
+    def cmd(glob):
+        """A command."""
+        pass
+
+    ctx = click_context(cmd)
+    option = cmd.params[0]
+    lines = list(_format_option(ctx, option))
+    content_lines = [
+        l for l in lines if l.strip() and not l.strip().startswith(".. option::")
+    ]
+
+    # Asterisks should be escaped so RST doesn't interpret them as emphasis
+    content = " ".join(content_lines)
+    assert "\\*" in content
+    # Should not contain unescaped asterisks in the help text portion
+    assert "*.jpg" not in content or "\\*.jpg" in content
+
+
+def test_format_option_escapes_trailing_underscores(click_context):
+    """Test that trailing underscores in option help text are escaped for RST."""
+
+    @click.command()
+    @click.option("--name", help="Use file_name_ as the identifier")
+    def cmd(name):
+        """A command."""
+        pass
+
+    ctx = click_context(cmd)
+    option = cmd.params[0]
+    lines = list(_format_option(ctx, option))
+    content = " ".join(lines)
+
+    # Trailing underscore after word char should be escaped
+    assert "name\\_" in content
+
+
+def test_format_option_preserves_already_escaped(click_context):
+    """Test that already-escaped asterisks are not double-escaped."""
+
+    @click.command()
+    @click.option("--pattern", help="Use \\* for wildcard")
+    def cmd(pattern):
+        """A command."""
+        pass
+
+    ctx = click_context(cmd)
+    option = cmd.params[0]
+    lines = list(_format_option(ctx, option))
+    content = " ".join(lines)
+
+    # Should have \* but not \\*  (the negative lookbehind prevents double-escaping)
+    assert "\\*" in content
+    assert "\\\\*" not in content
+
+
+def test_format_command_custom_blank_line_after_program_directive(click_context):
+    """Test that .. program:: directive is followed by a blank line.
+
+    Without a blank line after .. program::, the RST parser may misinterpret
+    the next content line as part of the directive.
+    """
+    ctx = click_context(standard_command, "test-cmd")
+    lines = list(_format_command_custom(ctx, nested=NESTED_FULL))
+
+    # Find all occurrences of ".. program::" and verify each is followed by ""
+    for i, line in enumerate(lines):
+        if line.startswith(".. program::"):
+            assert i + 1 < len(lines), ".. program:: directive is the last line"
+            assert lines[i + 1] == "", (
+                f"Expected blank line after '.. program::' at index {i}, "
+                f"got: {lines[i + 1]!r}"
+            )

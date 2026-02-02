@@ -550,6 +550,9 @@ def _format_option(
             if line == "":
                 bar_enabled = False
             line = "| " + line if bar_enabled else line
+            # Escape RST special characters in option help text
+            line = re.sub(r"(?<!\\)\*", r"\\*", line)
+            line = re.sub(r"(\w)_(?!\w)", r"\1\\_", line)
             yield _indent(line)
 
 
@@ -932,6 +935,7 @@ def _format_command_custom(
                     yield from _format_help(before)
 
                 yield ".. program:: {}".format(ctx.command_path)
+                yield ""
 
                 # Check if we need to generate sphinx sections
                 if sphinx_help == "<<<SPHINX_SECTIONS>>>":
@@ -984,6 +988,7 @@ def _format_command_custom(
         yield line
 
     yield ".. program:: {}".format(ctx.command_path)
+    yield ""
 
     # usage
     for line in _format_usage(ctx):
